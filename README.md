@@ -52,19 +52,25 @@ A narrative-driven, story-rich RPG where you play as a paramedic navigating medi
 ### Project Structure
 ```
 night-shift-paramedic-rpg/
-├── index.html          # Main game page
+├── index.html              # Main game page
 ├── css/
-│   └── styles.css      # Game styling
+│   └── styles.css          # Game styling
 ├── js/
-│   ├── utils.js        # Utility functions
-│   ├── audio.js        # Audio system (placeholder)
-│   ├── character.js    # Character/skills system
-│   ├── mental-health.js # Stress and coping
-│   ├── partners.js     # Partner relationships
-│   ├── calls.js        # Call/mission system
-│   ├── dialogue.js     # Disco Elysium-style dialogue
-│   ├── ui.js           # UI/HUD management
-│   └── game.js         # Main game engine
+│   ├── utils.js            # Utility functions
+│   ├── audio.js            # Audio system
+│   ├── character.js        # Character/skills system (24 skills)
+│   ├── mental-health.js    # Stress and coping mechanisms
+│   ├── partners.js         # Partner relationships (6 partners)
+│   ├── calls.js            # Call/mission system
+│   ├── dialogue.js         # Disco Elysium-style dialogue (16 skill voices)
+│   ├── thought-cabinet.js  # Thought internalization system (10+ thoughts)
+│   ├── mini-games.js       # Medical procedure mini-games (CPR, IV, defib)
+│   ├── endings.js          # 8 complete endings with sequences
+│   ├── activities.js       # 15+ off-duty activities
+│   ├── story-calls-1.js    # Complete scripted story calls
+│   ├── story-calls-2.js    # Traumatic calls & partner missions
+│   ├── ui.js               # UI/HUD management
+│   └── game.js             # Main game engine
 └── README.md
 ```
 
@@ -115,24 +121,34 @@ Player discretion is advised. The game includes content warning toggles in Optio
 
 ## Development Status
 
-This is a functional prototype demonstrating core systems:
-- [x] Character creation and skills
-- [x] Mental health system
-- [x] Partner relationships
+This is a comprehensive implementation with all core systems:
+- [x] Character creation (24 skills, 5 backgrounds, 5 archetypes)
+- [x] Mental health system with 7 mental states
+- [x] Partner relationships (6 partners with full dialogue)
 - [x] Call generation and skill checks
-- [x] Disco Elysium-style dialogue with skill voices
-- [x] Playable prologue sequence
-- [x] Main game loop
+- [x] Disco Elysium-style dialogue with 16 skill voices
+- [x] Playable traumatic prologue sequence
+- [x] Thought Cabinet system (10+ internalizeable thoughts)
+- [x] Medical procedure mini-games (CPR, IV, Defibrillation)
+- [x] 8 complete endings with full sequences
+- [x] 15+ off-duty activities (therapy, hobbies, social)
+- [x] Complete scripted story calls with full dialogue trees
+- [x] Partner personal story missions
 - [x] Save/load system
 
+### Additional Features
+- **Thought Cabinet**: Internalize thoughts to gain permanent bonuses (like Disco Elysium)
+- **Mini-Games**: Interactive CPR rhythm game, IV placement, defibrillation timing
+- **Multiple Endings**: 8 endings (Burnout, Survivor, Redeemed, Escalation, Promotion, Change, True Partner, Advocate)
+- **Off-Duty Activities**: Therapy sessions with dialogue trees, exercise, social activities, hobbies
+- **Coping Mechanisms**: Both healthy (therapy, exercise) and unhealthy (alcohol, isolation) with consequences
+
 ### Future Enhancements
-- Full audio implementation
-- More scripted story calls
-- Complete partner story arcs
-- Multiple ending paths
-- Visual assets and scenes
+- Full audio implementation with actual sound files
+- Visual assets and character portraits
 - Mobile-responsive design
-- Additional coping mechanism mini-games
+- Additional scripted story calls (currently ~15, target 50+)
+- Investigation side-quests
 
 ## Credits
 
