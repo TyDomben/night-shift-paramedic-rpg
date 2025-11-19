@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Night Shift - A Paramedic RPG</title>
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <div id="game-container">
+        <!-- Main Menu -->
+        <div id="main-menu" class="screen active">
+            <div class="menu-content">
+                <h1 class="game-title">NIGHT SHIFT</h1>
+                <p class="game-subtitle">A Paramedic RPG</p>
+                <div class="menu-buttons">
+                    <button id="btn-new-game" class="menu-btn">New Game</button>
+                    <button id="btn-continue" class="menu-btn" disabled>Continue</button>
+                    <button id="btn-options" class="menu-btn">Options</button>
+                    <button id="btn-credits" class="menu-btn">Credits</button>
+                </div>
+                <p class="content-warning">
+                    Content Warning: This game contains themes of trauma, death,
+                    mental health struggles, substance abuse, and medical emergencies.
+                </p>
+            </div>
+        </div>
+
+        <!-- Character Creation -->
+        <div id="character-creation" class="screen">
+            <div class="creation-content">
+                <h2>Who Are You?</h2>
+
+                <div class="creation-section">
+                    <label for="player-name">Name:</label>
+                    <input type="text" id="player-name" placeholder="Enter your name" maxlength="20">
+                </div>
+
+                <div class="creation-section">
+                    <h3>Background</h3>
+                    <p class="section-desc">Your history shapes your skills and how others see you.</p>
+                    <div id="background-options" class="option-grid"></div>
+                </div>
+
+                <div class="creation-section">
+                    <h3>Personality Archetype</h3>
+                    <p class="section-desc">How do you approach the job?</p>
+                    <div id="archetype-options" class="option-grid"></div>
+                </div>
+
+                <div class="creation-section">
+                    <h3>Skill Points</h3>
+                    <p class="section-desc">Distribute <span id="remaining-points">10</span> additional points.</p>
+                    <div id="skill-allocation" class="skill-grid"></div>
+                </div>
+
+                <div class="creation-buttons">
+                    <button id="btn-back-menu" class="menu-btn secondary">Back</button>
+                    <button id="btn-start-game" class="menu-btn">Begin Shift</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Game Screen -->
+        <div id="game-screen" class="screen">
+            <!-- Top HUD -->
+            <div id="top-hud">
+                <div class="hud-left">
+                    <div class="player-info">
+                        <span id="hud-name">Name</span>
+                        <span id="hud-shift">Shift 1</span>
+                    </div>
+                </div>
+                <div class="hud-center">
+                    <div class="time-display">
+                        <span id="hud-time">19:00</span>
+                        <span id="hud-date">Monday</span>
+                    </div>
+                </div>
+                <div class="hud-right">
+                    <div class="status-bars">
+                        <div class="bar-container">
+                            <label>Stress</label>
+                            <div class="bar stress-bar">
+                                <div id="stress-fill" class="bar-fill"></div>
+                            </div>
+                            <span id="stress-value">0</span>
+                        </div>
+                        <div class="bar-container">
+                            <label>Energy</label>
+                            <div class="bar energy-bar">
+                                <div id="energy-fill" class="bar-fill"></div>
+                            </div>
+                            <span id="energy-value">100</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Main Game Area -->
+            <div id="game-area">
+                <!-- Scene Display -->
+                <div id="scene-container">
+                    <div id="scene-image"></div>
+                    <div id="scene-description"></div>
+                </div>
+
+                <!-- Dialogue Box -->
+                <div id="dialogue-container">
+                    <div id="speaker-name"></div>
+                    <div id="dialogue-text"></div>
+                    <div id="dialogue-choices"></div>
+                    <div id="dialogue-continue" class="hidden">Click to continue...</div>
+                </div>
+
+                <!-- Skill Check Display -->
+                <div id="skill-check-display" class="hidden">
+                    <div class="skill-check-content">
+                        <h3 id="skill-check-name"></h3>
+                        <div class="skill-check-details">
+                            <span id="skill-check-difficulty"></span>
+                            <span id="skill-check-modifier"></span>
+                        </div>
+                        <div id="skill-check-result"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Bottom HUD -->
+            <div id="bottom-hud">
+                <div class="action-buttons">
+                    <button id="btn-inventory" class="action-btn">Equipment</button>
+                    <button id="btn-character" class="action-btn">Character</button>
+                    <button id="btn-partner" class="action-btn">Partner</button>
+                    <button id="btn-menu-ingame" class="action-btn">Menu</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Character Sheet Modal -->
+        <div id="character-modal" class="modal hidden">
+            <div class="modal-content character-sheet">
+                <h2>Character Sheet</h2>
+                <div id="character-sheet-content"></div>
+                <button class="modal-close">Close</button>
+            </div>
+        </div>
+
+        <!-- Partner Modal -->
+        <div id="partner-modal" class="modal hidden">
+            <div class="modal-content partner-sheet">
+                <h2 id="partner-name-display">Partner</h2>
+                <div id="partner-sheet-content"></div>
+                <button class="modal-close">Close</button>
+            </div>
+        </div>
+
+        <!-- Equipment Modal -->
+        <div id="equipment-modal" class="modal hidden">
+            <div class="modal-content equipment-sheet">
+                <h2>Equipment</h2>
+                <div id="equipment-content"></div>
+                <button class="modal-close">Close</button>
+            </div>
+        </div>
+
+        <!-- Options Modal -->
+        <div id="options-modal" class="modal hidden">
+            <div class="modal-content">
+                <h2>Options</h2>
+                <div class="option-group">
+                    <label>Text Speed</label>
+                    <input type="range" id="text-speed" min="1" max="5" value="3">
+                </div>
+                <div class="option-group">
+                    <label>
+                        <input type="checkbox" id="auto-save" checked>
+                        Auto-Save
+                    </label>
+                </div>
+                <div class="option-group">
+                    <label>
+                        <input type="checkbox" id="content-warnings" checked>
+                        Show Content Warnings
+                    </label>
+                </div>
+                <div class="option-group">
+                    <label>
+                        <input type="checkbox" id="skip-seen" >
+                        Skip Previously Seen Text
+                    </label>
+                </div>
+                <button class="modal-close">Close</button>
+            </div>
+        </div>
+
+        <!-- In-Game Menu Modal -->
+        <div id="ingame-menu-modal" class="modal hidden">
+            <div class="modal-content">
+                <h2>Menu</h2>
+                <div class="menu-buttons">
+                    <button id="btn-save">Save Game</button>
+                    <button id="btn-load">Load Game</button>
+                    <button id="btn-options-ingame">Options</button>
+                    <button id="btn-quit">Quit to Menu</button>
+                </div>
+                <button class="modal-close">Resume</button>
+            </div>
+        </div>
+
+        <!-- Notification System -->
+        <div id="notification-container"></div>
+
+        <!-- Loading Screen -->
+        <div id="loading-screen" class="screen">
+            <div class="loading-content">
+                <div class="loader"></div>
+                <p id="loading-text">Loading...</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="js/utils.js"></script>
+    <script src="js/audio.js"></script>
+    <script src="js/character.js"></script>
+    <script src="js/mental-health.js"></script>
+    <script src="js/partners.js"></script>
+    <script src="js/calls.js"></script>
+    <script src="js/dialogue.js"></script>
+    <script src="js/ui.js"></script>
+    <script src="js/game.js"></script>
+</body>
+</html>
