@@ -400,6 +400,9 @@ const CallSystem = {
         const complication = Math.random() < 0.4 ?
             Utils.shuffle(template.complications)[0] : null;
 
+        const patient = this.generatePatient(template);
+        const equipment = this.getRequiredEquipment(template.id, patient);
+
         return {
             id: Utils.generateId(),
             templateId: template.id,
@@ -424,6 +427,11 @@ const CallSystem = {
             outcome: null,
             choices: [],
             skillChecks: [],
+            patientStability: 0, // Tracks patient condition throughout call
+            complications: [], // Accumulates complications during call
+
+            // Equipment
+            requiredEquipment: equipment,
 
             // Timing
             dispatchTime: gameState.time,
@@ -431,9 +439,55 @@ const CallSystem = {
             completionTime: null,
 
             // Generated details
-            patient: this.generatePatient(template),
-            bystanders: this.generateBystanders(scene)
+            patient: patient,
+            bystanders: this.generateBystanders(scene),
+            chiefComplaint: patient.chiefComplaint
         };
+    },
+
+    // Get required equipment based on call type
+    getRequiredEquipment(callType, patient) {
+        const baseEquipment = ['oxygen', 'monitor', 'iv_supplies'];
+
+        switch (callType) {
+            case 'cardiac_arrest':
+                return ['defibrillator', 'airway_kit', 'medications', 'monitor', 'cpr_board'];
+
+            case 'chest_pain':
+                return ['monitor', '12_lead_ecg', 'oxygen', 'medications'];
+
+            case 'overdose':
+                if (patient.vitals.pupils === 'pinpoint') {
+                    return ['airway_kit', 'narcan', 'monitor', 'oxygen'];
+                }
+                return ['airway_kit', 'monitor', 'restraints'];
+
+            case 'allergic_reaction':
+                return ['epinephrine', 'airway_kit', 'monitor', 'oxygen'];
+
+            case 'stroke':
+                return ['monitor', 'glucose_meter', 'oxygen', 'stroke_assessment'];
+
+            case 'diabetic_emergency':
+                return ['glucose_meter', 'dextrose', 'monitor'];
+
+            case 'childbirth':
+                return ['ob_kit', 'bulb_syringe', 'clamps', 'blankets'];
+
+            case 'pediatric_trauma':
+            case 'shooting':
+            case 'industrial_accident':
+                return ['trauma_kit', 'tourniquets', 'splints', 'monitor', 'iv_supplies'];
+
+            case 'burn_victim':
+                return ['burn_sheets', 'iv_supplies', 'airway_kit', 'monitor'];
+
+            case 'seizure':
+                return ['airway_kit', 'medications', 'monitor', 'oxygen'];
+
+            default:
+                return baseEquipment;
+        }
     },
 
     // Get category for a call template
@@ -468,13 +522,14 @@ const CallSystem = {
         return text;
     },
 
-    // Generate patient details
+    // Generate patient details with realistic vital signs
     generatePatient(template) {
         const ageRanges = {
             pediatric_trauma: [1, 12],
             pediatric_care: [1, 12],
             elderly_fall: [65, 95],
             geriatric_care: [65, 95],
+            childbirth: [18, 45],
             default: [18, 85]
         };
 
@@ -497,13 +552,283 @@ const CallSystem = {
             female: ['Mary', 'Sarah', 'Jennifer', 'Lisa', 'Maria', 'Angela', 'Kim', 'Priya', 'Fatima', 'Elena']
         };
 
+        // Generate realistic vital signs based on condition and age
+        const vitals = this.generateVitals(template.id, age);
+        const chiefComplaint = this.getChiefComplaint(template.id);
+        const medicalHistory = this.generateMedicalHistory(template.id, age);
+
         return {
             name: Utils.shuffle(names[gender])[0],
             age: age,
             gender: gender,
-            conscious: Math.random() < 0.7,
-            breathing: Math.random() < 0.85,
-            cooperative: Math.random() < 0.6
+            vitals: vitals,
+            chiefComplaint: chiefComplaint,
+            medicalHistory: medicalHistory,
+            conscious: vitals.consciousness !== 'unresponsive',
+            breathing: vitals.respiratory_rate > 0,
+            cooperative: Math.random() < 0.6,
+            pain: vitals.pain || 0
+        };
+    },
+
+    // Generate realistic vital signs
+    generateVitals(callType, age) {
+        // Base normal vitals by age
+        const isPediatric = age < 13;
+        const isGeriatric = age > 65;
+
+        let baseVitals = {
+            systolic: 120,
+            diastolic: 80,
+            heart_rate: 75,
+            respiratory_rate: 16,
+            spo2: 98,
+            temperature: 98.6,
+            consciousness: 'alert',
+            pain: 0
+        };
+
+        // Adjust for age
+        if (isPediatric) {
+            baseVitals.heart_rate = 100;
+            baseVitals.respiratory_rate = 24;
+            baseVitals.systolic = 95;
+            baseVitals.diastolic = 60;
+        } else if (isGeriatric) {
+            baseVitals.systolic = 135;
+            baseVitals.heart_rate = 70;
+        }
+
+        // Adjust for specific call types
+        switch (callType) {
+            case 'cardiac_arrest':
+                return {
+                    systolic: 0, diastolic: 0, heart_rate: 0,
+                    respiratory_rate: 0, spo2: 0,
+                    temperature: 98.0, consciousness: 'unresponsive', pain: 0
+                };
+
+            case 'chest_pain':
+                return {
+                    systolic: Utils.random(140, 180),
+                    diastolic: Utils.random(85, 105),
+                    heart_rate: Utils.random(85, 120),
+                    respiratory_rate: Utils.random(18, 26),
+                    spo2: Utils.random(94, 99),
+                    temperature: 98.6,
+                    consciousness: 'alert',
+                    pain: Utils.random(6, 10)
+                };
+
+            case 'overdose':
+                const isOpioid = Math.random() < 0.6;
+                if (isOpioid) {
+                    return {
+                        systolic: Utils.random(85, 110),
+                        diastolic: Utils.random(50, 70),
+                        heart_rate: Utils.random(45, 70),
+                        respiratory_rate: Utils.random(4, 10),
+                        spo2: Utils.random(75, 88),
+                        temperature: 97.2,
+                        consciousness: 'unresponsive',
+                        pain: 0,
+                        pupils: 'pinpoint'
+                    };
+                } else {
+                    // Stimulant overdose
+                    return {
+                        systolic: Utils.random(160, 200),
+                        diastolic: Utils.random(95, 120),
+                        heart_rate: Utils.random(130, 180),
+                        respiratory_rate: Utils.random(24, 35),
+                        spo2: Utils.random(92, 98),
+                        temperature: 101.5,
+                        consciousness: 'agitated',
+                        pain: 2
+                    };
+                }
+
+            case 'stroke':
+                return {
+                    systolic: Utils.random(160, 210),
+                    diastolic: Utils.random(95, 115),
+                    heart_rate: Utils.random(70, 100),
+                    respiratory_rate: Utils.random(14, 22),
+                    spo2: Utils.random(94, 98),
+                    temperature: 98.6,
+                    consciousness: 'confused',
+                    pain: 2,
+                    symptoms: ['facial_droop', 'slurred_speech', 'arm_drift']
+                };
+
+            case 'allergic_reaction':
+                const severity = Math.random();
+                if (severity < 0.3) {
+                    // Severe anaphylaxis
+                    return {
+                        systolic: Utils.random(75, 95),
+                        diastolic: Utils.random(45, 60),
+                        heart_rate: Utils.random(110, 150),
+                        respiratory_rate: Utils.random(28, 40),
+                        spo2: Utils.random(82, 91),
+                        temperature: 98.6,
+                        consciousness: 'drowsy',
+                        pain: 3,
+                        symptoms: ['stridor', 'hives', 'swelling']
+                    };
+                } else {
+                    // Moderate reaction
+                    return {
+                        systolic: Utils.random(105, 125),
+                        diastolic: Utils.random(65, 80),
+                        heart_rate: Utils.random(90, 115),
+                        respiratory_rate: Utils.random(22, 30),
+                        spo2: Utils.random(92, 96),
+                        temperature: 98.6,
+                        consciousness: 'alert',
+                        pain: 4,
+                        symptoms: ['hives', 'difficulty_breathing']
+                    };
+                }
+
+            case 'diabetic_emergency':
+                const isHypo = Math.random() < 0.7;
+                if (isHypo) {
+                    // Hypoglycemia
+                    return {
+                        systolic: Utils.random(100, 130),
+                        diastolic: Utils.random(60, 80),
+                        heart_rate: Utils.random(95, 125),
+                        respiratory_rate: Utils.random(16, 24),
+                        spo2: Utils.random(96, 99),
+                        temperature: 98.0,
+                        consciousness: 'confused',
+                        pain: 0,
+                        glucose: Utils.random(35, 55)
+                    };
+                } else {
+                    // Hyperglycemia/DKA
+                    return {
+                        systolic: Utils.random(95, 115),
+                        diastolic: Utils.random(55, 70),
+                        heart_rate: Utils.random(105, 140),
+                        respiratory_rate: Utils.random(26, 36),
+                        spo2: Utils.random(94, 98),
+                        temperature: 99.2,
+                        consciousness: 'drowsy',
+                        pain: 3,
+                        glucose: Utils.random(350, 600)
+                    };
+                }
+
+            case 'pediatric_trauma':
+            case 'shooting':
+            case 'industrial_accident':
+                // Trauma with shock
+                return {
+                    systolic: Utils.random(85, 105),
+                    diastolic: Utils.random(50, 65),
+                    heart_rate: Utils.random(115, 145),
+                    respiratory_rate: Utils.random(22, 32),
+                    spo2: Utils.random(88, 94),
+                    temperature: 97.0,
+                    consciousness: 'drowsy',
+                    pain: Utils.random(8, 10)
+                };
+
+            case 'anxiety_attack':
+                return {
+                    systolic: Utils.random(135, 155),
+                    diastolic: Utils.random(80, 95),
+                    heart_rate: Utils.random(110, 145),
+                    respiratory_rate: Utils.random(28, 40),
+                    spo2: Utils.random(98, 100),
+                    temperature: 98.6,
+                    consciousness: 'alert',
+                    pain: 5
+                };
+
+            default:
+                // Add some variation to base vitals
+                return {
+                    systolic: baseVitals.systolic + Utils.random(-10, 15),
+                    diastolic: baseVitals.diastolic + Utils.random(-5, 10),
+                    heart_rate: baseVitals.heart_rate + Utils.random(-10, 20),
+                    respiratory_rate: baseVitals.respiratory_rate + Utils.random(-2, 6),
+                    spo2: baseVitals.spo2 + Utils.random(-2, 2),
+                    temperature: baseVitals.temperature + Utils.random(-0.5, 1.0),
+                    consciousness: baseVitals.consciousness,
+                    pain: Utils.random(0, 7)
+                };
+        }
+    },
+
+    // Get chief complaint for call type
+    getChiefComplaint(callType) {
+        const complaints = {
+            chest_pain: 'chest_pain',
+            cardiac_arrest: 'unresponsive',
+            overdose: 'altered_mental_status',
+            stroke: 'facial_droop',
+            allergic_reaction: 'difficulty_breathing',
+            diabetic_emergency: 'altered_mental_status',
+            seizure: 'seizure',
+            anxiety_attack: 'difficulty_breathing',
+            elderly_fall: 'fall',
+            pediatric_trauma: 'traumatic_injury',
+            shooting: 'penetrating_trauma',
+            mva: 'traumatic_injury',
+            intoxicated: 'altered_mental_status',
+            childbirth: 'labor',
+            burn_victim: 'burns',
+            domestic_violence: 'assault',
+            suicide_attempt: 'self_harm'
+        };
+
+        return complaints[callType] || 'general_illness';
+    },
+
+    // Generate medical history
+    generateMedicalHistory(callType, age) {
+        const history = [];
+
+        // Age-related conditions
+        if (age > 65) {
+            if (Math.random() < 0.6) history.push('hypertension');
+            if (Math.random() < 0.4) history.push('diabetes');
+            if (Math.random() < 0.3) history.push('atrial_fibrillation');
+            if (Math.random() < 0.25) history.push('copd');
+        }
+
+        // Call-specific history
+        if (callType === 'chest_pain' || callType === 'cardiac_arrest') {
+            if (Math.random() < 0.5) history.push('prior_mi');
+            if (Math.random() < 0.4) history.push('coronary_artery_disease');
+            if (Math.random() < 0.3) history.push('hyperlipidemia');
+        }
+
+        if (callType === 'stroke') {
+            if (Math.random() < 0.6) history.push('hypertension');
+            if (Math.random() < 0.3) history.push('atrial_fibrillation');
+            if (Math.random() < 0.2) history.push('prior_stroke');
+        }
+
+        if (callType === 'seizure') {
+            if (Math.random() < 0.7) history.push('epilepsy');
+            if (Math.random() < 0.2) history.push('brain_tumor');
+        }
+
+        // Medications
+        const medications = [];
+        if (history.includes('hypertension')) medications.push('lisinopril', 'metoprolol');
+        if (history.includes('diabetes')) medications.push('metformin');
+        if (history.includes('atrial_fibrillation')) medications.push('warfarin');
+        if (history.includes('copd')) medications.push('albuterol');
+
+        return {
+            conditions: history,
+            medications: medications,
+            allergies: Math.random() < 0.15 ? ['aspirin'] : []
         };
     },
 
@@ -557,39 +882,85 @@ const CallSystem = {
         return result;
     },
 
-    // Calculate call outcome
+    // Calculate call outcome based on patient stability, skill checks, and complications
     calculateOutcome(call, character) {
         const successes = call.skillChecks.filter(c => c.result.success).length;
         const total = call.skillChecks.length;
-        const ratio = total > 0 ? successes / total : 0;
+        const skillRatio = total > 0 ? successes / total : 0;
+
+        // Patient stability is the primary determinant
+        const patientStability = call.patientStability || 0;
+        const complications = call.complications || [];
+        const complicationPenalty = complications.length * -2;
+
+        // Calculate final stability score
+        const finalStability = patientStability + complicationPenalty;
 
         let outcome = {
             survived: true,
             quality: 'adequate',
             stressImpact: call.stressBase,
             xpGained: 10,
-            relationshipImpact: 0
+            relationshipImpact: 0,
+            deathType: null,
+            stabilityScore: finalStability
         };
 
-        // Determine survival
+        // Determine survival based on patient stability and call criticality
         if (call.critical) {
-            outcome.survived = ratio >= 0.5;
+            // Critical calls require positive stability or very high skill ratio
+            if (finalStability >= 3) {
+                outcome.survived = true;
+            } else if (finalStability >= 0) {
+                outcome.survived = Math.random() < 0.7;
+            } else if (finalStability >= -3) {
+                outcome.survived = Math.random() < 0.4;
+            } else {
+                outcome.survived = Math.random() < 0.15; // Heroic save
+            }
         } else {
-            outcome.survived = ratio >= 0.3 || Math.random() < 0.7;
+            // Non-critical calls are more forgiving
+            if (finalStability >= 0) {
+                outcome.survived = true;
+            } else if (finalStability >= -3) {
+                outcome.survived = Math.random() < 0.8;
+            } else {
+                outcome.survived = Math.random() < 0.5;
+            }
         }
 
-        // Determine quality
-        if (ratio >= 0.8) {
+        // Determine death type if patient didn't survive
+        if (!outcome.survived) {
+            if (call.templateId === 'cardiac_arrest') {
+                outcome.deathType = 'cardiac_death';
+            } else if (call.templateId === 'pediatric_trauma') {
+                outcome.deathType = 'pediatric_death';
+            } else if (call.templateId === 'overdose') {
+                outcome.deathType = 'overdose_death';
+            } else if (call.critical) {
+                outcome.deathType = 'traumatic_death';
+            } else {
+                outcome.deathType = 'patient_death';
+            }
+
+            // Apply stress multiplier for death
+            outcome.stressImpact *= (call.stressMultiplier || 1.0);
+        }
+
+        // Determine quality based on combination of stability and skill performance
+        const overallScore = (finalStability / 5) + (skillRatio * 2);
+
+        if (overallScore >= 2.5 && outcome.survived) {
             outcome.quality = 'excellent';
             outcome.xpGained = 25;
             outcome.relationshipImpact = 5;
             outcome.stressImpact *= 0.5;
-        } else if (ratio >= 0.6) {
+        } else if (overallScore >= 1.5 && outcome.survived) {
             outcome.quality = 'good';
             outcome.xpGained = 15;
             outcome.relationshipImpact = 2;
             outcome.stressImpact *= 0.7;
-        } else if (ratio >= 0.4) {
+        } else if (overallScore >= 0.5) {
             outcome.quality = 'adequate';
             outcome.xpGained = 10;
         } else {
@@ -599,11 +970,15 @@ const CallSystem = {
             outcome.stressImpact *= 1.3;
         }
 
-        // Apply death stress
-        if (!outcome.survived) {
-            const deathType = call.patient.age < 18 ? 'pediatric_death' : 'patient_death';
-            outcome.stressImpact = call.stressBase * call.stressMultiplier * 2;
-            outcome.deathType = deathType;
+        // Additional stress modifiers
+        if (complications.length > 0) {
+            outcome.stressImpact += complications.length * 2;
+        }
+
+        // Bonus for saving critical patients against the odds
+        if (call.critical && outcome.survived && finalStability < 0) {
+            outcome.xpGained += 10;
+            outcome.stressImpact *= 0.8; // Less stress when you pull off a miracle
         }
 
         call.outcome = outcome;
@@ -612,18 +987,26 @@ const CallSystem = {
 
     // Get call description for current phase
     getPhaseDescription(call) {
+        const vitals = call.patient?.vitals;
+        const stability = call.patientStability || 0;
+
         const descriptions = {
             dispatch: `Dispatch: ${call.dispatch}\nLocation: ${call.districtData.name} - ${call.sceneData.name}`,
 
             response: `En route to ${call.sceneData.name}.\nTime limit: ${call.timeLimit} minutes.\nPrepare for: ${call.name}`,
 
             scene: `On scene. ${call.patient.name}, ${call.patient.age} y/o ${call.patient.gender}.\n` +
-                `Conscious: ${call.patient.conscious ? 'Yes' : 'No'}\n` +
-                `Breathing: ${call.patient.breathing ? 'Yes' : 'No'}`,
+                (vitals ? `BP: ${vitals.systolic}/${vitals.diastolic}  HR: ${vitals.heart_rate}  RR: ${vitals.respiratory_rate}  SpO2: ${vitals.spo2}%\n` : '') +
+                `Conscious: ${call.patient.conscious ? 'Yes' : 'No'}  ` +
+                `Breathing: ${call.patient.breathing ? 'Yes' : 'No'}  ` +
+                `Pain: ${call.patient.pain}/10\n` +
+                (vitals?.symptoms ? `Symptoms: ${vitals.symptoms.join(', ')}\n` : '') +
+                (stability !== 0 ? `Patient stability: ${stability > 0 ? '+' : ''}${stability}` : ''),
 
-            transport: `Transporting to hospital.\nPatient status: ${call.outcome?.survived ? 'Stable' : 'Critical'}`,
+            transport: `Transporting to hospital.\nPatient status: ${call.outcome?.survived ? 'Stable' : 'Critical'}\n` +
+                (call.complications && call.complications.length > 0 ? `Complications: ${call.complications.join(', ')}` : ''),
 
-            hospital: `At hospital. Handing off to ER staff.`
+            hospital: `At hospital. Handing off to ER staff.\nFinal stability: ${stability > 0 ? '+' : ''}${stability}`
         };
 
         return descriptions[call.phase] || '';

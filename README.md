@@ -153,6 +153,33 @@ The game features medically accurate protocols and procedures:
 - Respiratory distress management with albuterol/CPAP
 - Proper use of spinal immobilization and splinting
 
+**Realistic Vital Signs:**
+- Accurate vital signs for each patient based on age and condition
+- BP, HR, RR, SpO2, temperature, consciousness level, pain scale
+- Pediatric vitals adjusted (higher HR/RR, lower BP)
+- Geriatric considerations (baseline hypertension common)
+- Condition-specific presentations:
+  - Cardiac arrest: 0/0 BP, HR 0, asystole
+  - Chest pain: Elevated BP (140-180/85-105), tachycardia
+  - Opioid overdose: Bradycardia, hypoventilation (4-10 RR), pinpoint pupils, low SpO2
+  - Anaphylaxis: Hypotension, tachycardia, low SpO2, stridor
+  - Diabetic emergencies: Glucose readings (35-600 mg/dL range)
+
+**Medical History Generation:**
+- Age-appropriate comorbidities (HTN, diabetes, A-fib, COPD)
+- Call-specific history (prior MI for cardiac calls, epilepsy for seizures)
+- Medication lists that match conditions (Warfarin for A-fib, metformin for diabetes)
+- Allergies tracked (15% chance of aspirin allergy)
+- Drug interactions considered in treatment validation
+
+**Equipment Requirements:**
+- Call-specific equipment needs automatically determined
+- Cardiac arrest: Defibrillator, airway kit, medications, CPR board
+- Trauma: Tourniquets, splints, trauma kit, IV supplies
+- Overdose: Narcan (if opioid), airway kit, restraints
+- Missing equipment applies -4 penalty to relevant skill checks
+- Equipment depletion tracked through failed attempts
+
 **Realistic Complications:**
 - Rib fractures from CPR (8-10% incidence)
 - Esophageal intubation risk
@@ -199,10 +226,18 @@ This is a comprehensive implementation with all core systems:
 - **Multiple Endings**: 8 endings (Burnout, Survivor, Redeemed, Escalation, Promotion, Change, True Partner, Advocate)
 - **Off-Duty Activities**: Therapy sessions with dialogue trees, exercise, social activities, hobbies
 - **Coping Mechanisms**: Both healthy (therapy, exercise) and unhealthy (alcohol, isolation) with consequences
-- **Dynamic Treatment Choices**: Call-specific treatment options based on patient presentation
-- **Medical Validation**: Real-time contraindication checking for medications
+- **Dynamic Treatment Choices**: Call-specific treatment options based on patient presentation and vitals
+- **Medical Validation**: Real-time contraindication checking for medications based on patient history
 - **Complication System**: 50+ realistic medical complications tied to specific failures
-- **Consequence Tracking**: Patient stability, equipment depletion, time pressure all affect outcomes
+- **Patient Stability Tracking**: Real-time tracking of patient condition through skill checks
+  - Successful interventions improve stability
+  - Failures worsen patient condition
+  - Complications apply -2 penalty each
+  - Final outcome determined by stability score, not just pass/fail
+- **Realistic Vital Signs**: Every patient has accurate vitals (BP, HR, RR, SpO2, temp, pain)
+- **Equipment System**: Call-type specific equipment requirements with penalties for missing gear
+- **Medical History**: Patients have realistic comorbidities, medications, and allergies
+- **Chief Complaints**: Proper EMS-style chief complaints matching medical protocols
 
 ### Future Enhancements
 - Full audio implementation with actual sound files
