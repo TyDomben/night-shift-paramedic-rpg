@@ -247,25 +247,73 @@ const Game = {
         AudioSystem.play('heartbeat');
         UI.setScene('Compressions. Breaths. The rhythm of attempted resurrection.');
 
-        await this.showDialogue('narrator', 'You begin CPR. Thirty compressions. Two breaths. Check rhythm.');
+        await this.showDialogue('narrator', 'You begin CPR. Thirty compressions. Two breaths. The rhythm drilled into you at academy.');
 
-        // Multiple rounds of CPR with checks
+        // Multiple rounds of CPR with realistic checks and consequences
+        let totalPatientDamage = 0;
+        let cprQuality = 0;
+
         for (let round = 1; round <= 3; round++) {
-            await this.showDialogue('narrator', `Round ${round}. No response.`);
+            await this.showDialogue('narrator', `Round ${round}. Check rhythm...`);
+
+            if (round === 1 && foundObstruction) {
+                await this.showDialogue('narrator', 'Airway clear. The compressions might actually work now.');
+            }
 
             if (round === 2) {
-                await this.showDialogue('marcus', '"Epi\'s on board. Come on, kid, come on..."');
+                await this.showDialogue('marcus', '"Epi\'s on board. 1mg IV push. Continuing compressions..."');
+                await this.showDialogue('narrator', 'Epinephrine administered. Standard ACLS protocol.');
             }
 
-            // Skill check for CPR quality
-            const cprCheck = await this.performSkillCheckWithDisplay('cardiology', 13 + round);
-
-            if (!cprCheck.success) {
-                await this.showDialogue('narrator', 'Your rhythm falters. Fatigue. Fear.');
+            if (round === 3) {
+                await this.showDialogue('marcus', '"Second epi. Rhythm check - still asystole. Continue CPR."');
             }
 
-            // Time passing
-            await this.showDialogue('narrator', `${round * 2} minutes on scene. Still no pulse.`);
+            // Time-critical CPR check with increasing difficulty (fatigue)
+            const timeRemaining = 15 - (round * 2); // Decreasing time window
+            const cprCheck = await this.performSkillCheckWithDisplay(
+                'cardiology',
+                12 + round, // Gets harder with fatigue
+                {
+                    dangerous: false,
+                    equipment: foundObstruction ? [] : ['defibrillator'], // Easier if obstruction found
+                    modifiers: foundObstruction ? 2 : -2
+                }
+            );
+
+            // Track CPR quality for later
+            if (cprCheck.tier === 'critical_success' || cprCheck.tier === 'success') {
+                cprQuality += 2;
+            } else if (cprCheck.tier === 'marginal_success') {
+                cprQuality += 1;
+            }
+
+            // Handle different outcomes
+            if (cprCheck.tier === 'critical_failure' || cprCheck.tier === 'failure') {
+                if (cprCheck.consequences.effects.complication) {
+                    await this.showDialogue('narrator', 'You feel ribs crack under your hands. Too much force.');
+                    totalPatientDamage += 2;
+                } else {
+                    await this.showDialogue('narrator', 'Your rhythm falters. Fatigue. Fear. Focus slipping.');
+                    totalPatientDamage += 1;
+                }
+            } else if (cprCheck.tier === 'marginal_success') {
+                await this.showDialogue('narrator', 'Adequate compressions. Barely. Your arms are burning.');
+            } else {
+                await this.showDialogue('narrator', 'Good compressions. Proper depth. Full recoil. By the book.');
+            }
+
+            // Check for ROSC (return of spontaneous circulation) - only possible if good CPR and obstruction found
+            if (round === 3 && foundObstruction && cprQuality >= 4) {
+                await this.showDialogue('narrator', 'Wait...');
+                await this.showDialogue('marcus', '"I got a pulse! Weak but there! Keep ventilating!"');
+                await this.showDialogue('narrator', 'ROSC achieved. But too late. Too much time down.');
+                break;
+            } else {
+                await this.showDialogue('narrator', `${round * 2} minutes on scene. Still no pulse. No rhythm.`);
+            }
+
+            await Utils.sleep(800);
         }
 
         // The decision point
@@ -526,22 +574,41 @@ const Game = {
             }
         }
 
-        // Treatment phase
-        await this.showDialogue('narrator', 'Time for treatment.');
+        // Treatment phase - specific to call type
+        await this.showDialogue('narrator', 'Primary assessment complete. Treatment decision needed.');
 
-        const treatmentChoice = await this.showChoices([
-            { text: 'Follow standard protocol', style: 'professional' },
-            { text: 'Aggressive intervention', style: 'bold' },
-            { text: 'Conservative approach, monitor closely', style: 'cautious' }
-        ]);
+        // Build treatment options based on call type
+        const treatmentOptions = this.getTreatmentOptions(call);
 
-        // Final skill check based on approach
-        let finalDifficulty = call.difficulty;
-        if (treatmentChoice.index === 1) finalDifficulty -= 2; // Aggressive is easier but riskier
-        if (treatmentChoice.index === 2) finalDifficulty += 1; // Conservative is harder to succeed with
+        const treatmentChoice = await this.showChoices(treatmentOptions);
 
-        const composureCheck = await this.performSkillCheckWithDisplay('composure', finalDifficulty);
-        CallSystem.processSkillCheck(call, this.state.character, 'composure');
+        // Process treatment choice with medical validation
+        const treatmentResult = await this.processTreatmentChoice(
+            call,
+            treatmentChoice,
+            treatmentOptions[treatmentChoice.index]
+        );
+
+        // Apply treatment outcomes
+        if (treatmentResult.contraindicated) {
+            await this.showDialogue('narrator', `WARNING: ${treatmentResult.reason}`);
+            MentalHealthSystem.applyStress(this.state.character, 'medical_error', 0.8);
+            call.patientStability = (call.patientStability || 0) - 3;
+        } else if (treatmentResult.optimal) {
+            await this.showDialogue('narrator', 'Textbook application of protocol. Exactly right.');
+            call.patientStability = (call.patientStability || 0) + 2;
+        }
+
+        // Final execution check based on approach
+        const executionSkill = treatmentOptions[treatmentChoice.index].executionSkill || 'composure';
+        let finalDifficulty = call.difficulty + (treatmentResult.difficultyMod || 0);
+
+        const executionCheck = await this.performSkillCheckWithDisplay(
+            executionSkill,
+            finalDifficulty,
+            { equipment: call.requiredEquipment || [] }
+        );
+        CallSystem.processSkillCheck(call, this.state.character, executionSkill);
 
         // Calculate outcome
         const outcome = CallSystem.calculateOutcome(call, this.state.character);
@@ -751,22 +818,355 @@ const Game = {
         });
     },
 
-    // Perform skill check with display
-    async performSkillCheckWithDisplay(skillId, difficulty) {
-        const result = CharacterSystem.performSkillCheck(
+    // Perform skill check with display using new six-tier system
+    async performSkillCheckWithDisplay(skillId, difficulty, context = {}) {
+        // Add partner context if available
+        if (this.state.currentPartner && !context.partner) {
+            context.partner = this.state.currentPartner;
+        }
+
+        // Use new enhanced skill check system
+        const result = SkillCheckSystem.performCheck(
             this.state.character,
             skillId,
-            difficulty
+            difficulty,
+            context
         );
 
+        // Display the check with formatted output
         const checkResult = {
             skill: skillId,
             skillName: Utils.snakeToTitle(skillId),
             difficulty,
-            result
+            result: {
+                success: result.success,
+                roll: result.roll,
+                total: result.targetNumber,
+                margin: result.margin,
+                tier: result.tier
+            }
         };
 
         await UI.displaySkillCheck(checkResult);
+
+        // Apply consequences
+        const effects = await this.applySkillCheckConsequences(result);
+
+        // Offer retry if failed and retry is possible
+        if (!result.success && context.allowRetry !== false) {
+            const retryInfo = SkillCheckSystem.canRetry(result, {
+                timeRemaining: context.timeRemaining,
+                hasBackup: context.hasBackupEquipment
+            });
+
+            if (retryInfo.canRetry) {
+                // Ask player if they want to retry
+                const retryChoice = await this.showChoices([
+                    {
+                        text: `Retry (Harder: DC ${difficulty + retryInfo.difficultyIncrease})`,
+                        style: 'determined',
+                        isRetry: true
+                    },
+                    {
+                        text: 'Move on - try something else',
+                        style: 'adaptive',
+                        isRetry: false
+                    }
+                ]);
+
+                if (retryChoice.index === 0) {
+                    await this.showDialogue('narrator', 'You steady yourself. Try again.');
+
+                    // Apply stress increase for attempting retry
+                    this.state.character.stress += retryInfo.stressIncrease;
+                    UI.updateHUD(this.state);
+
+                    // Perform retry with increased difficulty
+                    return await this.performSkillCheckWithDisplay(
+                        skillId,
+                        difficulty + retryInfo.difficultyIncrease,
+                        { ...context, allowRetry: false, isRetry: true }
+                    );
+                }
+            } else if (retryInfo.reason) {
+                await this.showDialogue('narrator', retryInfo.reason);
+            }
+        }
+
+        return result;
+    },
+
+    // Apply consequences from skill check results
+    async applySkillCheckConsequences(checkResult) {
+        const effects = checkResult.consequences.effects;
+        let notifications = [];
+
+        // Stress changes
+        if (effects.stressReduction) {
+            this.state.character.stress = Utils.clamp(
+                this.state.character.stress - effects.stressReduction,
+                0, 100
+            );
+            notifications.push(`Stress -${effects.stressReduction}`);
+        }
+        if (effects.stressIncrease) {
+            this.state.character.stress = Utils.clamp(
+                this.state.character.stress + effects.stressIncrease,
+                0, 100
+            );
+            notifications.push(`Stress +${effects.stressIncrease}`);
+        }
+
+        // Patient condition
+        if (effects.patientStabilityBonus && this.state.currentCall) {
+            this.state.currentCall.patientStability =
+                (this.state.currentCall.patientStability || 0) + effects.patientStabilityBonus;
+            if (effects.patientStabilityBonus > 0) {
+                notifications.push('Patient stabilizing');
+            }
+        }
+        if (effects.patientDeteriorates && this.state.currentCall) {
+            this.state.currentCall.patientStability =
+                (this.state.currentCall.patientStability || 0) - effects.patientDeteriorates;
+            notifications.push(`Patient condition worsening (-${effects.patientDeteriorates})`);
+        }
+
+        // Equipment wasted
+        if (effects.equipmentWasted && this.state.currentCall) {
+            const equipment = this.state.currentCall.requiredEquipment?.[0];
+            if (equipment) {
+                notifications.push(`${Utils.snakeToTitle(equipment)} wasted`);
+            }
+        }
+
+        // Complications
+        if (effects.complicationRisk && Math.random() < effects.complicationRisk) {
+            const complication = SkillCheckSystem.generateComplication(checkResult.skill);
+            notifications.push(`COMPLICATION: ${complication}`);
+            if (this.state.currentCall) {
+                this.state.currentCall.complications = this.state.currentCall.complications || [];
+                this.state.currentCall.complications.push(complication);
+            }
+        }
+        if (effects.complication === 'guaranteed') {
+            const complication = SkillCheckSystem.generateComplication(checkResult.skill);
+            notifications.push(`CRITICAL COMPLICATION: ${complication}`);
+            if (this.state.currentCall) {
+                this.state.currentCall.complications = this.state.currentCall.complications || [];
+                this.state.currentCall.complications.push(complication);
+            }
+        }
+
+        // Time delays
+        if (effects.timeDelay) {
+            const delays = { minor: 2, moderate: 5, major: 10, critical: 15 };
+            const minutes = delays[effects.timeDelay] || 0;
+            if (minutes > 0) {
+                this.advanceTime(minutes);
+                notifications.push(`Time lost: ${minutes}min`);
+            }
+        }
+
+        // Display notifications
+        for (const note of notifications) {
+            UI.showNotification(note,
+                note.includes('COMPLICATION') ? 'error' :
+                note.includes('worsening') ? 'warning' :
+                'info'
+            );
+        }
+
+        // Update HUD
+        UI.updateHUD(this.state);
+
+        // Show consequence narration if significant
+        if (effects.patientDeteriorates >= 2) {
+            await this.showDialogue('narrator', checkResult.consequences.description);
+        }
+
+        return effects;
+    },
+
+    // Get treatment options based on call type
+    getTreatmentOptions(call) {
+        const callType = call.type || 'medical';
+        const chiefComplaint = call.chiefComplaint || 'unknown';
+
+        // Default options
+        let options = [
+            {
+                text: 'Follow standard EMS protocol',
+                style: 'professional',
+                protocol: 'standard',
+                executionSkill: 'composure',
+                difficultyMod: 0
+            },
+            {
+                text: 'Aggressive intervention - high-dose medications',
+                style: 'bold',
+                protocol: 'aggressive',
+                executionSkill: 'pharmacology',
+                difficultyMod: -2,
+                riskier: true
+            },
+            {
+                text: 'Conservative - oxygen, IV, monitor, transport',
+                style: 'cautious',
+                protocol: 'conservative',
+                executionSkill: 'observation',
+                difficultyMod: 1
+            }
+        ];
+
+        // Specific options for cardiac calls
+        if (chiefComplaint === 'chest_pain' || callType === 'cardiac') {
+            options = [
+                {
+                    text: 'STEMI protocol: Aspirin 324mg, Nitroglycerin, 12-lead',
+                    style: 'professional',
+                    protocol: 'stemi',
+                    medications: ['aspirin', 'nitroglycerin'],
+                    executionSkill: 'cardiology',
+                    difficultyMod: 0,
+                    optimal: true
+                },
+                {
+                    text: 'Nitro only - wait and see',
+                    style: 'cautious',
+                    protocol: 'conservative',
+                    medications: ['nitroglycerin'],
+                    executionSkill: 'observation',
+                    difficultyMod: 2
+                },
+                {
+                    text: 'Pain management focus - morphine for comfort',
+                    style: 'comfort',
+                    protocol: 'palliative',
+                    medications: ['morphine'],
+                    executionSkill: 'pharmacology',
+                    difficultyMod: 0
+                }
+            ];
+        }
+
+        // Respiratory distress
+        if (chiefComplaint === 'difficulty_breathing' || chiefComplaint === 'respiratory_distress') {
+            options = [
+                {
+                    text: 'Albuterol nebulizer, position upright, O2',
+                    style: 'professional',
+                    protocol: 'bronchodilator',
+                    medications: ['albuterol'],
+                    executionSkill: 'airway_management',
+                    optimal: true
+                },
+                {
+                    text: 'High-flow O2, CPAP if available',
+                    style: 'aggressive',
+                    protocol: 'respiratory_support',
+                    executionSkill: 'airway_management',
+                    difficultyMod: -1
+                },
+                {
+                    text: 'Check for anaphylaxis - give epinephrine',
+                    style: 'investigative',
+                    protocol: 'anaphylaxis',
+                    medications: ['epinephrine'],
+                    executionSkill: 'observation',
+                    difficultyMod: 1
+                }
+            ];
+        }
+
+        // Overdose/poisoning
+        if (chiefComplaint === 'overdose' || chiefComplaint === 'altered_mental_status') {
+            options = [
+                {
+                    text: 'Narcan 0.4mg IN - check for opioid overdose',
+                    style: 'professional',
+                    protocol: 'narcan',
+                    medications: ['narcan'],
+                    executionSkill: 'pharmacology',
+                    optimal: true
+                },
+                {
+                    text: 'Glucose check first - could be diabetic',
+                    style: 'investigative',
+                    protocol: 'hypoglycemia',
+                    medications: ['glucose'],
+                    executionSkill: 'observation',
+                    difficultyMod: 0
+                },
+                {
+                    text: 'Protect airway, monitor, transport',
+                    style: 'cautious',
+                    protocol: 'supportive',
+                    executionSkill: 'airway_management',
+                    difficultyMod: 1
+                }
+            ];
+        }
+
+        return options;
+    },
+
+    // Process treatment choice with medical validation
+    async processTreatmentChoice(call, choice, option) {
+        const result = {
+            contraindicated: false,
+            optimal: option.optimal || false,
+            difficultyMod: option.difficultyMod || 0,
+            reason: ''
+        };
+
+        // Check for medication contraindications if medications used
+        if (option.medications && option.medications.length > 0) {
+            for (const medId of option.medications) {
+                const medication = MedicalProtocols.medications[medId];
+                if (!medication) continue;
+
+                // Check contraindications (simplified - would need patient history)
+                // For now, random chance based on common contraindications
+                if (medId === 'nitroglycerin') {
+                    // 15% chance patient took Viagra recently
+                    if (Math.random() < 0.15) {
+                        result.contraindicated = true;
+                        result.reason = 'Patient took sildenafil (Viagra) within 24h - NTG contraindicated. Hypotension risk.';
+                        return result;
+                    }
+                    // 10% chance patient has hypotension
+                    if (Math.random() < 0.10) {
+                        result.contraindicated = true;
+                        result.reason = 'Patient BP 82/50 - Nitroglycerin contraindicated. Will cause cardiovascular collapse.';
+                        return result;
+                    }
+                }
+
+                if (medId === 'aspirin') {
+                    // 5% chance of allergy or active bleeding
+                    if (Math.random() < 0.05) {
+                        result.contraindicated = true;
+                        result.reason = 'Patient allergic to aspirin - noted on bracelet. Alternative needed.';
+                        return result;
+                    }
+                }
+
+                if (medId === 'narcan') {
+                    // Check if actually opioid overdose (60% of "overdose" calls are opioids)
+                    if (Math.random() > 0.60) {
+                        result.contraindicated = false; // Not harmful, just ineffective
+                        result.reason = 'Narcan given but no response - not an opioid overdose. Other cause.';
+                        result.difficultyMod += 2; // Now harder to treat
+                    }
+                }
+            }
+        }
+
+        // Check if protocol matches call needs
+        if (option.protocol === 'stemi' && call.chiefComplaint === 'chest_pain') {
+            result.optimal = true;
+        }
+
         return result;
     },
 

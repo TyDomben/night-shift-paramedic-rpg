@@ -58,6 +58,8 @@ night-shift-paramedic-rpg/
 ├── js/
 │   ├── utils.js            # Utility functions
 │   ├── audio.js            # Audio system
+│   ├── medical-protocols.js # Medically accurate ACLS/MARCH protocols
+│   ├── skill-check-system.js # Six-tier skill check with consequences
 │   ├── character.js        # Character/skills system (24 skills)
 │   ├── mental-health.js    # Stress and coping mechanisms
 │   ├── partners.js         # Partner relationships (6 partners)
@@ -93,8 +95,31 @@ night-shift-paramedic-rpg/
 
 ## Game Systems
 
-### Skill Checks
-Skills are checked using a d20 roll system. Higher skill values give better chances of success. Your mental state, stress level, and partner can all modify these checks.
+### Enhanced Skill Check System
+Skills use an advanced six-tier success/failure system with real consequences:
+
+**Success Tiers:**
+- **Critical Success** (margin ≥10): Exceptional performance, stress reduction, time bonus, extra patient stability
+- **Success** (margin 5-9): Competent execution, normal progress
+- **Marginal Success** (margin 0-4): Barely adequate, complication risk 30%, minor time delay
+
+**Failure Tiers:**
+- **Marginal Failure** (margin -1 to -5): Suboptimal attempt, patient worsens, stress +3, retry possible
+- **Failure** (margin -6 to -10): Significant consequences, patient deteriorates, stress +8, equipment wasted
+- **Critical Failure** (margin ≤-11): Catastrophic error, guaranteed complication, stress +15, no retry possible
+
+**Modifiers:**
+- High stress (>70): -1 per 10 points over threshold
+- Low energy (<30): -1 per 15 points under threshold
+- Missing equipment: -4 penalty per required item
+- Partner assistance: +2 to +4 depending on partner's expertise
+- Mental state: varies by condition and skill type
+
+**Retry System:**
+- Failed checks can often be retried at +2 difficulty
+- Retries cost time and increase stress (+3)
+- Critical failures may prevent retry (too much damage done)
+- Equipment depletion can prevent retry
 
 ### Stress & Mental States
 - Stress increases from traumatic calls, deaths, and poor choices
@@ -106,6 +131,34 @@ Skills are checked using a d20 roll system. Higher skill values give better chan
 - Work shifts with different partners
 - Build trust through choices and shared experiences
 - Higher relationship levels unlock personal story missions and special endings
+
+### Medical Accuracy
+The game features medically accurate protocols and procedures:
+
+**ACLS (Advanced Cardiac Life Support):**
+- CPR standards: 100-120 compressions/minute, 2-2.4 inches depth, 30:2 ratio
+- Proper medication dosing: Epinephrine 1mg IV, Atropine 0.5mg, Amiodarone 300mg
+- Correct rhythm recognition and treatment algorithms
+- Realistic termination criteria (20-30 minutes, 3 rounds epi, medical control)
+
+**Medication Administration:**
+- Accurate dosing: Aspirin 324mg, Nitroglycerin 0.4mg SL, Narcan 0.4-2mg IN/IM
+- Real contraindications checked: NTG contraindicated with Viagra <24h or hypotension
+- Drug-drug interactions and allergic reactions
+- Proper routes: IV, IM, SL, IN, PO
+
+**Treatment Protocols:**
+- MARCH algorithm for trauma (Massive hemorrhage, Airway, Respirations, Circulation, Hypothermia)
+- STEMI protocol with 12-lead ECG and aspirin
+- Respiratory distress management with albuterol/CPAP
+- Proper use of spinal immobilization and splinting
+
+**Realistic Complications:**
+- Rib fractures from CPR (8-10% incidence)
+- Esophageal intubation risk
+- IV infiltration and hematomas
+- Medication errors with serious consequences
+- Missed diagnoses affecting patient outcomes
 
 ## Content Warnings
 
@@ -125,9 +178,13 @@ This is a comprehensive implementation with all core systems:
 - [x] Character creation (24 skills, 5 backgrounds, 5 archetypes)
 - [x] Mental health system with 7 mental states
 - [x] Partner relationships (6 partners with full dialogue)
-- [x] Call generation and skill checks
+- [x] Enhanced six-tier skill check system with real consequences
+- [x] Medically accurate ACLS/MARCH protocols
+- [x] Medication contraindication validation system
+- [x] Retry mechanics with increasing difficulty
+- [x] Realistic medical complications from failures
 - [x] Disco Elysium-style dialogue with 16 skill voices
-- [x] Playable traumatic prologue sequence
+- [x] Playable traumatic prologue sequence with realistic CPR
 - [x] Thought Cabinet system (10+ internalizeable thoughts)
 - [x] Medical procedure mini-games (CPR, IV, Defibrillation)
 - [x] 8 complete endings with full sequences
@@ -138,10 +195,14 @@ This is a comprehensive implementation with all core systems:
 
 ### Additional Features
 - **Thought Cabinet**: Internalize thoughts to gain permanent bonuses (like Disco Elysium)
-- **Mini-Games**: Interactive CPR rhythm game, IV placement, defibrillation timing
+- **Mini-Games**: Interactive CPR rhythm game (100-120 BPM, 2-2.4" depth), IV placement, defibrillation timing
 - **Multiple Endings**: 8 endings (Burnout, Survivor, Redeemed, Escalation, Promotion, Change, True Partner, Advocate)
 - **Off-Duty Activities**: Therapy sessions with dialogue trees, exercise, social activities, hobbies
 - **Coping Mechanisms**: Both healthy (therapy, exercise) and unhealthy (alcohol, isolation) with consequences
+- **Dynamic Treatment Choices**: Call-specific treatment options based on patient presentation
+- **Medical Validation**: Real-time contraindication checking for medications
+- **Complication System**: 50+ realistic medical complications tied to specific failures
+- **Consequence Tracking**: Patient stability, equipment depletion, time pressure all affect outcomes
 
 ### Future Enhancements
 - Full audio implementation with actual sound files
